@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"/>
+  <meta name="theme-color" content="#080c18"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="description" content="Persönliches Finanz-Dashboard CH & DE"/>
+  <title>FinanzKompass</title>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    :root {
+      --bg: #080c18; --surface: #0f1629; --surface2: #161e35;
+      --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.12);
+      --text: #f1f5f9; --text2: #94a3b8; --text3: #475569;
+      --accent: #6366f1; --accent2: #818cf8;
+      --green: #10b981; --amber: #f59e0b; --red: #ef4444;
+      --bkb: #e63329; --sparkasse: #ef2020; --volksbank: #4466cc; --mlp: #00a0e3;
+      --nav-h: 72px; --safe-b: env(safe-area-inset-bottom, 0px);
+      --font-display: 'Syne', sans-serif; --font-mono: 'JetBrains Mono', monospace;
+    }
+    html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font-display); }
+    #app { height: 100%; display: flex; flex-direction: column; }
+
+    /* ── Top bar ── */
+    .topbar {
+      background: var(--bg); border-bottom: 1px solid var(--border);
+      padding: 14px 20px 12px; display: flex; align-items: center; justify-content: space-between;
+      padding-top: max(14px, env(safe-area-inset-top));
+      position: sticky; top: 0; z-index: 100;
+    }
+    .topbar-title { font-size: 18px; font-weight: 800; background: linear-gradient(135deg,#818cf8,#34d399); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .topbar-sub { font-size: 10px; color: var(--text3); margin-top: 1px; }
+    .install-btn {
+      background: rgba(99,102,241,0.2); border: 1px solid rgba(99,102,241,0.4);
+      color: var(--accent2); padding: 7px 14px; border-radius: 10px;
+      font-size: 12px; font-weight: 700; font-family: var(--font-display); cursor: pointer; display: none;
+    }
+    .install-btn.visible { display: block; }
+
+    /* ── Scrollable content ── */
+    .content {
+      flex: 1; overflow-y: auto; overflow-x: hidden;
+      padding-bottom: calc(var(--nav-h) + var(--safe-b) + 12px);
+      -webkit-overflow-scrolling: touch;
+    }
+    .page { display: none; padding: 16px; }
+    .page.active { display: block; }
+
+    /* ── Bottom nav ── */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      height: calc(var(--nav-h) + var(--safe-b));
+      background: rgba(8,12,24,0.96); backdrop-filter: blur(20px);
+      border-top: 1px solid var(--border); display: flex;
+      padding-bottom: var(--safe-b); z-index: 200;
+    }
+    .nav-item {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 4px; cursor: pointer; padding: 8px 0; transition: all 0.2s; border: none; background: none; color: var(--text3);
+    }
+    .nav-item.active { color: var(--accent2); }
+    .nav-item .nav-icon { font-size: 22px; transition: transform 0.2s; }
+    .nav-item.active .nav-icon { transform: scale(1.15); }
+    .nav-item .nav-label { font-size: 10px; font-weight: 700; letter-spacing: 0.03em; }
+    .nav-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent2); margin-top: 2px; opacity: 0; transition: opacity 0.2s; }
+    .nav-item.active .nav-dot { opacity: 1; }
+
+    /* ── Cards ── */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px; margin-bottom: 14px; }
+    .card-sm { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+    .section-title { font-size: 13px; font-weight: 700; color: var(--text2); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 12px; }
+
+    /* ── Stat pills ── */
+    .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .stat-pill { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; }
+    .stat-pill .label { font-size: 10px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
+    .stat-pill .value { font-family: var(--font-mono); font-size: 18px; font-weight: 700; }
+    .stat-pill .sub { font-size: 10px; color: var(--text3); margin-top: 3px; }
+
+    /* ── Account cards ── */
+    .account-card {
+      border-radius: 16px; padding: 16px 18px; margin-bottom: 10px;
+      display: flex; justify-content: space-between; align-items: center;
+      border-left: 4px solid; background: var(--surface); border-top: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    }
+    .account-bank { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 3px; }
+    .account-name { font-size: 14px; font-weight: 700; color: var(--text); }
+    .account-iban { font-size: 10px; color: var(--text3); font-family: var(--font-mono); margin-top: 3px; }
+    .account-balance { font-family: var(--font-mono); font-size: 20px; font-weight: 700; text-align: right; }
+    .account-currency { font-size: 10px; color: var(--text3); text-align: right; margin-top: 2px; }
+
+    /* ── Transactions ── */
+    .txn-item {
+      display: flex; align-items: center; gap: 12px; padding: 12px 0;
+      border-bottom: 1px solid var(--border); transition: background 0.15s;
+    }
+    .txn-item:last-child { border-bottom: none; }
+    .txn-icon { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .txn-info { flex: 1; min-width: 0; }
+    .txn-desc { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .txn-meta { font-size: 11px; color: var(--text3); margin-top: 2px; display: flex; gap: 6px; align-items: center; }
+    .bank-tag { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
+    .txn-amount { font-family: var(--font-mono); font-size: 14px; font-weight: 700; text-align: right; flex-shrink: 0; }
+    .txn-cur { font-size: 10px; color: var(--text3); text-align: right; }
+
+    /* ── Filter chips ── */
+    .chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px; scrollbar-width: none; }
+    .chips::-webkit-scrollbar { display: none; }
+    .chip { padding: 7px 14px; border-radius: 20px; border: 1px solid var(--border2); font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: var(--font-display); background: transparent; color: var(--text3); transition: all 0.2s; }
+    .chip.active { background: rgba(99,102,241,0.25); border-color: rgba(99,102,241,0.5); color: var(--accent2); }
+
+    /* ── Progress bar ── */
+    .prog-bar { height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+    .prog-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+
+    /* ── CSV Upload ── */
+    .upload-zone {
+      border: 2px dashed rgba(99,102,241,0.35); border-radius: 18px; padding: 36px 20px;
+      text-align: center; cursor: pointer; transition: all 0.2s; background: rgba(99,102,241,0.04);
+    }
+    .upload-zone:active { border-color: var(--accent2); background: rgba(99,102,241,0.1); transform: scale(0.98); }
+    .upload-icon { font-size: 44px; margin-bottom: 12px; }
+    .upload-title { font-size: 16px; font-weight: 800; color: var(--accent2); margin-bottom: 6px; }
+    .upload-sub { font-size: 12px; color: var(--text3); line-height: 1.6; }
+
+    /* ── Bank format cards ── */
+    .bank-fmt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+    .bank-fmt-card { border-radius: 12px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid; }
+    .bank-fmt-name { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+    .bank-fmt-path { font-size: 10px; color: var(--text3); line-height: 1.5; }
+
+    /* ── AI panel ── */
+    .ai-tabs { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; scrollbar-width: none; }
+    .ai-tabs::-webkit-scrollbar { display: none; }
+    .ai-tab { padding: 9px 16px; border-radius: 12px; border: 1px solid var(--border2); font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: var(--font-display); background: transparent; color: var(--text3); transition: all 0.2s; }
+    .ai-tab.active { background: rgba(99,102,241,0.25); border-color: rgba(99,102,241,0.5); color: var(--accent2); }
+    .ai-response { font-size: 13px; line-height: 1.8; color: #d1d5db; white-space: pre-wrap; }
+    .ai-loading { display: flex; align-items: center; gap: 12px; color: var(--text3); padding: 20px 0; }
+    .spinner { width: 20px; height: 20px; border: 2px solid rgba(99,102,241,0.2); border-top-color: var(--accent2); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Misc ── */
+    .badge { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
+    .divider { height: 1px; background: var(--border); margin: 14px 0; }
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--text3); }
+    .empty-state .empty-icon { font-size: 40px; margin-bottom: 10px; }
+    .empty-state p { font-size: 13px; line-height: 1.6; }
+    .total-bar { background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(52,211,153,0.1)); border: 1px solid rgba(99,102,241,0.2); border-radius: 16px; padding: 16px 18px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
+    .import-result { border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; font-size: 12px; font-weight: 600; }
+    input[type=file] { display: none; }
+
+    /* ── Pie chart SVG ── */
+    .pie-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .pie-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); }
+    .pie-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- Top bar -->
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">FinanzKompass 🇨🇭🇩🇪</div>
+      <div class="topbar-sub" id="topbar-sub">BKB · Sparkasse · Volksbank · MLP</div>
+    </div>
+    <button class="install-btn" id="install-btn" onclick="installPWA()">📲 Installieren</button>
+  </div>
+
+  <!-- Pages -->
+  <div class="content">
+
+    <!-- OVERVIEW -->
+    <div class="page active" id="page-overview">
+      <div class="total-bar">
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:700;text-transform:uppercase;letter-spacing:.07em">Gesamtvermögen</div>
+          <div style="font-family:var(--font-mono);font-size:22px;font-weight:700;color:var(--green)" id="ov-total-chf">CHF 50'550</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px" id="ov-total-eur">+ EUR 15'960</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Sparquote</div>
+          <div style="font-family:var(--font-mono);font-size:22px;font-weight:700;color:var(--accent2)" id="ov-savings-rate">34%</div>
+        </div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-pill">
+          <div class="label">Einnahmen</div>
+          <div class="value" style="color:var(--green)" id="ov-income">10'448</div>
+          <div class="sub">Aktueller Zeitraum</div>
+        </div>
+        <div class="stat-pill">
+          <div class="label">Ausgaben</div>
+          <div class="value" style="color:var(--red)" id="ov-expenses">6'849</div>
+          <div class="sub">Aktueller Zeitraum</div>
+        </div>
+        <div class="stat-pill">
+          <div class="label">Fixkosten</div>
+          <div class="value" style="color:var(--amber)" id="ov-fixed">3'603</div>
+          <div class="sub">Monat</div>
+        </div>
+        <div class="stat-pill">
+          <div class="label">Variabel</div>
+          <div class="value" style="color:var(--text2)" id="ov-variable">3'246</div>
+          <div class="sub">Monat</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Ausgaben nach Kategorie</div>
+        <canvas id="pie-canvas" width="280" height="180" style="max-width:100%;display:block;margin:0 auto"></canvas>
+        <div class="pie-legend" id="pie-legend"></div>
+      </div>
+
+      <div class="card" style="background:rgba(99,102,241,0.08);border-color:rgba(99,102,241,0.2)">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--accent2);margin-bottom:3px">🇨🇭 Säule 3a</div>
+            <div style="font-size:12px;color:var(--text3)">CHF 583/583 · Fast am Maximum</div>
+          </div>
+          <div style="font-family:var(--font-mono);font-size:14px;color:var(--amber);font-weight:700">–CHF 21</div>
+        </div>
+        <div class="prog-bar" style="margin-top:10px">
+          <div class="prog-fill" style="width:96%;background:linear-gradient(90deg,#6366f1,#818cf8)"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACCOUNTS -->
+    <div class="page" id="page-accounts">
+      <div class="section-title">Meine Konten</div>
+      <div id="accounts-list"></div>
+
+      <div style="margin-top:4px" class="card" style="background:rgba(239,68,68,0.06);border-color:rgba(239,68,68,0.15)">
+        <div style="font-size:12px;font-weight:700;color:var(--amber);margin-bottom:4px">⚠️ Währungsrisiko</div>
+        <div style="font-size:12px;color:var(--text3);line-height:1.6" id="eur-warning">Du hast ca. 24% in EUR. Als CH-Einwohner empfehlen sich max. 20–30% Fremdwährung.</div>
+      </div>
+    </div>
+
+    <!-- TRANSACTIONS -->
+    <div class="page" id="page-transactions">
+      <div class="chips" id="bank-chips">
+        <button class="chip active" onclick="filterTxn('all',this)">🌐 Alle</button>
+        <button class="chip" onclick="filterTxn('BKB',this)">🇨🇭 BKB</button>
+        <button class="chip" onclick="filterTxn('Sparkasse',this)">Sparkasse</button>
+        <button class="chip" onclick="filterTxn('Volksbank',this)">Volksbank</button>
+        <button class="chip" onclick="filterTxn('MLP',this)">MLP</button>
+      </div>
+      <div class="card" style="padding:0 16px">
+        <div id="txn-list"></div>
+      </div>
+    </div>
+
+    <!-- IMPORT -->
+    <div class="page" id="page-import">
+      <div class="section-title">CSV Import</div>
+      <div class="bank-fmt-grid">
+        <div class="bank-fmt-card" style="border-left-color:var(--bkb)">
+          <div class="bank-fmt-name">🇨🇭 BKB</div>
+          <div class="bank-fmt-path">eBanking → Kontoauszug → CSV herunterladen</div>
+        </div>
+        <div class="bank-fmt-card" style="border-left-color:var(--sparkasse)">
+          <div class="bank-fmt-name">Sparkasse</div>
+          <div class="bank-fmt-path">Online Banking → Umsätze → CSV</div>
+        </div>
+        <div class="bank-fmt-card" style="border-left-color:var(--volksbank)">
+          <div class="bank-fmt-name">Volksbank</div>
+          <div class="bank-fmt-path">VR Banking → Umsätze → Export CSV</div>
+        </div>
+        <div class="bank-fmt-card" style="border-left-color:var(--mlp)">
+          <div class="bank-fmt-name">MLP</div>
+          <div class="bank-fmt-path">MLP Banking → Kontoauszug → CSV</div>
+        </div>
+      </div>
+
+      <div class="upload-zone" onclick="document.getElementById('csv-input').click()">
+        <div class="upload-icon">📂</div>
+        <div class="upload-title">CSV-Datei hochladen</div>
+        <div class="upload-sub">Bank wird automatisch erkannt<br>Mehrere Dateien möglich · Duplikate ignoriert</div>
+      </div>
+      <input type="file" id="csv-input" accept=".csv,.txt" multiple onchange="handleCSVUpload(event)"/>
+
+      <div id="import-results" style="margin-top:14px"></div>
+
+      <div class="card" style="margin-top:14px;background:rgba(245,158,11,0.06);border-color:rgba(245,158,11,0.2)">
+        <div style="font-size:12px;font-weight:700;color:var(--amber);margin-bottom:6px">💡 Tipp für Android</div>
+        <div style="font-size:12px;color:var(--text3);line-height:1.7">
+          1. In deiner Banking-App CSV exportieren<br>
+          2. Datei wird im Downloads-Ordner gespeichert<br>
+          3. Hier auf «CSV hochladen» tippen → Downloads-Ordner wählen<br>
+          4. Fertig — wird automatisch erkannt und kategorisiert!
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:0;background:rgba(99,102,241,0.06);border-color:rgba(99,102,241,0.2)">
+        <div style="font-size:12px;font-weight:700;color:var(--accent2);margin-bottom:6px">⚡ Auto-Sync (später)</div>
+        <div style="font-size:12px;color:var(--text3);line-height:1.7">
+          Sparkasse, Volksbank & MLP unterstützen FinTS/HBCI.<br>
+          Mit einem lokalen Node.js Backend auf deinem PC kannst du automatischen Sync einrichten — der PC synct, das Handy zeigt die Daten.
+        </div>
+      </div>
+    </div>
+
+    <!-- AI -->
+    <div class="page" id="page-ai">
+      <div class="section-title">KI-Finanzberater</div>
+      <div class="ai-tabs">
+        <button class="ai-tab active" onclick="runAI('advice',this)">💡 Sparempfehlungen</button>
+        <button class="ai-tab" onclick="runAI('invest',this)">📈 Investitionen</button>
+        <button class="ai-tab" onclick="runAI('plan',this)">🗓 Sparplan CH</button>
+        <button class="ai-tab" onclick="runAI('currency',this)">💱 CHF/EUR</button>
+      </div>
+      <div class="card">
+        <div id="ai-output">
+          <div class="empty-state">
+            <div class="empty-icon">🤖</div>
+            <p>Wähle eine Analyse oben.<br>Die KI nutzt deine echten Finanzdaten.</p>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);line-height:1.6;padding:0 4px;margin-top:-4px">
+        ⚠️ Keine Anlageberatung. Nur zur Information. Bitte einen zugelassenen CH-Finanzberater konsultieren.
+      </div>
+    </div>
+
+  </div><!-- /content -->
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" onclick="showPage('overview',this)">
+      <span class="nav-icon">📊</span>
+      <span class="nav-label">Übersicht</span>
+      <span class="nav-dot"></span>
+    </button>
+    <button class="nav-item" onclick="showPage('accounts',this)">
+      <span class="nav-icon">🏦</span>
+      <span class="nav-label">Konten</span>
+      <span class="nav-dot"></span>
+    </button>
+    <button class="nav-item" onclick="showPage('transactions',this)">
+      <span class="nav-icon">💳</span>
+      <span class="nav-label">Umsätze</span>
+      <span class="nav-dot"></span>
+    </button>
+    <button class="nav-item" onclick="showPage('import',this)">
+      <span class="nav-icon">📥</span>
+      <span class="nav-label">Import</span>
+      <span class="nav-dot"></span>
+    </button>
+    <button class="nav-item" onclick="showPage('ai',this)">
+      <span class="nav-icon">🤖</span>
+      <span class="nav-label">KI</span>
+      <span class="nav-dot"></span>
+    </button>
+  </nav>
+</div>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────────
+const ACCOUNTS = [
+  { id:'bkb1', bank:'BKB', name:'Privatkonto', iban:'CH56 0076 2011 6238 5295 7', balance:18450, currency:'CHF', color:'#e63329' },
+  { id:'bkb2', bank:'BKB', name:'Sparkonto',   iban:'CH93 0076 2011 6238 5295 8', balance:32100, currency:'CHF', color:'#e63329' },
+  { id:'sp1',  bank:'Sparkasse', name:'Girokonto', iban:'DE89 3704 0044 0532 0130 00', balance:4320, currency:'EUR', color:'#ef2020' },
+  { id:'vb1',  bank:'Volksbank', name:'Girokonto', iban:'DE27 2004 1155 0534 2200 00', balance:1890, currency:'EUR', color:'#4466cc' },
+  { id:'mlp1', bank:'MLP', name:'Tagesgeld',   iban:'DE91 6723 0000 0123 4567 89', balance:9750, currency:'EUR', color:'#00a0e3' },
+];
+
+let TRANSACTIONS = [
+  { id:'1',  date:'2026-03-01', description:'Lohnzahlung März', amount:7200, currency:'CHF', bank:'BKB', category:'💼 Gehalt' },
+  { id:'2',  date:'2026-03-01', description:'Miete Basel', amount:-2100, currency:'CHF', bank:'BKB', category:'🏠 Miete/Wohnen' },
+  { id:'3',  date:'2026-03-03', description:'Helsana Krankenkasse', amount:-380, currency:'CHF', bank:'BKB', category:'🏥 Krankenversicherung' },
+  { id:'4',  date:'2026-03-05', description:'Coop Lebensmittel', amount:-145, currency:'CHF', bank:'BKB', category:'🛒 Lebensmittel' },
+  { id:'5',  date:'2026-03-07', description:'SBB Abonnement', amount:-220, currency:'CHF', bank:'BKB', category:'🚗 Mobilität' },
+  { id:'6',  date:'2026-03-08', description:'Netflix & Spotify', amount:-28, currency:'CHF', bank:'BKB', category:'🎬 Abonnements' },
+  { id:'7',  date:'2026-03-06', description:'Säule 3a VIAC', amount:-583, currency:'CHF', bank:'BKB', category:'🏦 Vorsorge' },
+  { id:'8',  date:'2026-02-28', description:'Gehalt Februar', amount:3200, currency:'EUR', bank:'Sparkasse', category:'💼 Gehalt' },
+  { id:'9',  date:'2026-03-01', description:'REWE Supermarkt', amount:-89, currency:'EUR', bank:'Sparkasse', category:'🛒 Lebensmittel' },
+  { id:'10', date:'2026-03-03', description:'Vodafone Rechnung', amount:-35, currency:'EUR', bank:'Volksbank', category:'📱 Telekommunikation' },
+  { id:'11', date:'2026-03-05', description:'Restaurant Zum Grünen', amount:-64, currency:'EUR', bank:'Sparkasse', category:'🍽️ Restaurant' },
+  { id:'12', date:'2026-03-01', description:'MLP Zinsgutschrift', amount:48, currency:'EUR', bank:'MLP', category:'📈 Kapitalertrag' },
+  { id:'13', date:'2026-03-02', description:'Zalando Bestellung', amount:-129, currency:'EUR', bank:'Sparkasse', category:'🛍️ Shopping' },
+  { id:'14', date:'2026-03-04', description:'Apotheke', amount:-22, currency:'EUR', bank:'Volksbank', category:'💊 Gesundheit' },
+];
+
+const CAT_COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#06b6d4'];
+const BANK_COLORS = { BKB:'#e63329', Sparkasse:'#ef2020', Volksbank:'#4466cc', MLP:'#00a0e3' };
+const BANK_FLAGS  = { BKB:'🇨🇭', Sparkasse:'🇩🇪', Volksbank:'🇩🇪', MLP:'🇩🇪' };
+
+// ── Persistence (localStorage as IndexedDB fallback) ─────────────────────
+function saveData() {
+  try { localStorage.setItem('fk_transactions', JSON.stringify(TRANSACTIONS)); } catch(e){}
+}
+function loadData() {
+  try {
+    const d = localStorage.getItem('fk_transactions');
+    if (d) TRANSACTIONS = JSON.parse(d);
+  } catch(e){}
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  btn.classList.add('active');
+  if (id === 'overview')     renderOverview();
+  if (id === 'accounts')     renderAccounts();
+  if (id === 'transactions') renderTransactions('all');
+}
+
+// ── Render Overview ───────────────────────────────────────────────────────
+function renderOverview() {
+  const income   = TRANSACTIONS.filter(t => t.amount > 0).reduce((s,t) => s+t.amount, 0);
+  const expenses = Math.abs(TRANSACTIONS.filter(t => t.amount < 0).reduce((s,t) => s+t.amount, 0));
+  const fixed    = Math.abs(TRANSACTIONS.filter(t => ['🏠 Miete/Wohnen','🏥 Krankenversicherung','🚗 Mobilität','🎬 Abonnements','🏦 Vorsorge','📱 Telekommunikation'].includes(t.category) && t.amount < 0).reduce((s,t) => s+t.amount, 0));
+  const variable = expenses - fixed;
+  const rate     = income > 0 ? Math.round((income - expenses) / income * 100) : 0;
+  const totalCHF = ACCOUNTS.filter(a => a.currency==='CHF').reduce((s,a)=>s+a.balance,0);
+  const totalEUR = ACCOUNTS.filter(a => a.currency==='EUR').reduce((s,a)=>s+a.balance,0);
+
+  document.getElementById('ov-total-chf').textContent = "CHF " + totalCHF.toLocaleString('de-CH');
+  document.getElementById('ov-total-eur').textContent = "+ EUR " + totalEUR.toLocaleString('de-CH');
+  document.getElementById('ov-income').textContent   = income.toLocaleString('de-CH');
+  document.getElementById('ov-expenses').textContent = expenses.toLocaleString('de-CH');
+  document.getElementById('ov-fixed').textContent    = fixed.toLocaleString('de-CH');
+  document.getElementById('ov-variable').textContent = variable.toLocaleString('de-CH');
+  document.getElementById('ov-savings-rate').textContent = rate + '%';
+
+  drawPie();
+}
+
+function drawPie() {
+  const canvas = document.getElementById('pie-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const cats = {};
+  TRANSACTIONS.filter(t => t.amount < 0).forEach(t => { cats[t.category] = (cats[t.category]||0) + Math.abs(t.amount); });
+  const data = Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const total = data.reduce((s,d)=>s+d[1],0);
+  if (!total) return;
+
+  canvas.width = canvas.offsetWidth * 2 || 560;
+  canvas.height = 360;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  const cx = canvas.width/2, cy = canvas.height/2, r = Math.min(cx,cy) - 20;
+  let angle = -Math.PI/2;
+  data.forEach(([name,val],i) => {
+    const slice = (val/total) * Math.PI * 2;
+    ctx.beginPath(); ctx.moveTo(cx,cy);
+    ctx.arc(cx,cy,r,angle,angle+slice);
+    ctx.closePath(); ctx.fillStyle = CAT_COLORS[i%CAT_COLORS.length]; ctx.fill();
+    angle += slice;
+  });
+  // donut hole
+  ctx.beginPath(); ctx.arc(cx,cy,r*0.55,0,Math.PI*2);
+  ctx.fillStyle = '#0f1629'; ctx.fill();
+  // center text
+  ctx.fillStyle = '#f1f5f9'; ctx.font = `bold ${r*0.18}px JetBrains Mono,monospace`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(total.toLocaleString('de-CH'), cx, cy);
+
+  // legend
+  const legend = document.getElementById('pie-legend');
+  legend.innerHTML = data.map(([name,val],i) =>
+    `<div class="pie-legend-item"><div class="pie-dot" style="background:${CAT_COLORS[i%CAT_COLORS.length]}"></div>${name.split(' ').slice(1).join(' ')||name}</div>`
+  ).join('');
+}
+
+// ── Render Accounts ───────────────────────────────────────────────────────
+function renderAccounts() {
+  const list = document.getElementById('accounts-list');
+  list.innerHTML = ACCOUNTS.map(a => `
+    <div class="account-card" style="border-left-color:${a.color}">
+      <div>
+        <div class="account-bank" style="color:${a.color}">${BANK_FLAGS[a.bank]||'🏦'} ${a.bank}</div>
+        <div class="account-name">${a.name}</div>
+        <div class="account-iban">${a.iban}</div>
+      </div>
+      <div>
+        <div class="account-balance" style="color:${a.currency==='CHF'?'#f1f5f9':'#94a3b8'}">${a.balance.toLocaleString('de-CH')}</div>
+        <div class="account-currency">${a.currency}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── Render Transactions ───────────────────────────────────────────────────
+let currentFilter = 'all';
+function filterTxn(bank, btn) {
+  currentFilter = bank;
+  document.querySelectorAll('#bank-chips .chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  renderTransactions(bank);
+}
+function renderTransactions(bank) {
+  const filtered = bank==='all' ? TRANSACTIONS : TRANSACTIONS.filter(t => t.bank===bank);
+  const list = document.getElementById('txn-list');
+  if (!filtered.length) { list.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>Keine Transaktionen.<br>Importiere eine CSV-Datei.</p></div>'; return; }
+  list.innerHTML = [...filtered].reverse().map(t => {
+    const color = BANK_COLORS[t.bank] || '#64748b';
+    const iconBg = t.amount > 0 ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.06)';
+    return `
+      <div class="txn-item">
+        <div class="txn-icon" style="background:${iconBg}">${t.category.split(' ')[0]||'📦'}</div>
+        <div class="txn-info">
+          <div class="txn-desc">${t.description}</div>
+          <div class="txn-meta">
+            <span class="bank-tag" style="background:${color}20;color:${color}">${t.bank}</span>
+            <span>${t.date}</span>
+          </div>
+        </div>
+        <div>
+          <div class="txn-amount" style="color:${t.amount>0?'var(--green)':'var(--text)'}">
+            ${t.amount>0?'+':''}${Math.abs(t.amount).toLocaleString('de-CH')}
+          </div>
+          <div class="txn-cur">${t.currency}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── CSV Parser ────────────────────────────────────────────────────────────
+const CATEGORIZE = {
+  'Miete|Wohnung': '🏠 Miete/Wohnen',
+  'Krankenkasse|Krankenversicherung|Helsana|CSS|Sanitas|Swica': '🏥 Krankenversicherung',
+  'Coop|Migros|Lidl|Aldi|Rewe|Edeka|Denner|Spar': '🛒 Lebensmittel',
+  'SBB|ZVV|BVB|DB |Deutsche Bahn|Tankstelle|Shell|BP|Aral': '🚗 Mobilität',
+  'Netflix|Spotify|Disney|Amazon Prime': '🎬 Abonnements',
+  'Restaurant|Café|McDonalds|Starbucks|Burger|Pizza': '🍽️ Restaurant',
+  'Gehalt|Lohn|Salary': '💼 Gehalt',
+  'Dividende|Zinsen|Kapitalertrag|Zins': '📈 Kapitalertrag',
+  'IKEA|Zara|H&M|Zalando|Amazon|Galaxus|Digitec': '🛍️ Shopping',
+  'Apotheke|Arzt|Zahnarzt|Spital|Physio': '💊 Gesundheit',
+  'Säule 3a|VIAC|frankly|Pensionskasse': '🏦 Vorsorge',
+  'Strom|Wasser|Heizung|Energie|EWB|IWB': '⚡ Nebenkosten',
+  'Fitness|Gym|Sport': '💪 Sport',
+  'Swisscom|Sunrise|Salt|Vodafone|Telekom|O2': '📱 Telekommunikation',
+};
+function categorize(desc) {
+  for (const [pat, cat] of Object.entries(CATEGORIZE)) {
+    if (new RegExp(pat,'i').test(desc)) return cat;
+  }
+  return '📦 Sonstiges';
+}
+
+function detectAndParse(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  let headerIdx = 0;
+  for (let i = 0; i < Math.min(10, lines.length); i++) {
+    if (lines[i].split(';').length > 2 || lines[i].split(',').length > 3) { headerIdx = i; break; }
+  }
+  const header = lines[headerIdx];
+  const sep = header.includes(';') ? ';' : ',';
+  const cols = header.split(sep).map(c => c.trim().replace(/"/g,'').toLowerCase());
+  const dataRows = lines.slice(headerIdx+1);
+
+  // detect bank
+  let bankName = 'Import';
+  if (/valuta.*buchungstext/i.test(header)) bankName = 'BKB';
+  else if (/auftragskonto.*buchungstag/i.test(header)) bankName = 'Sparkasse';
+  else if (/bezeichnung auftragskonto/i.test(header)) bankName = 'Volksbank';
+
+  const amtCol  = cols.findIndex(c => /betrag|amount|umsatz|summe/.test(c));
+  const dateCol = cols.findIndex(c => /datum|date|buchung|valuta/.test(c));
+  const descCol = cols.findIndex(c => /beschreibung|text|verwendung|buchungstext/.test(c));
+
+  return dataRows.filter(r => r.trim()).map(r => {
+    const cells = r.split(sep).map(c => c.trim().replace(/"/g,''));
+    const rawAmt = (cells[amtCol]||'0').replace(/\./g,'').replace(',','.');
+    const amount = parseFloat(rawAmt) || 0;
+    const desc = cells[descCol] || cells[1] || '';
+    return {
+      id: Math.random().toString(36).slice(2),
+      date: cells[dateCol] || cells[0] || '',
+      description: desc,
+      amount,
+      currency: bankName === 'BKB' ? 'CHF' : 'EUR',
+      bank: bankName,
+      category: categorize(desc),
+    };
+  }).filter(t => t.date && t.amount !== 0);
+}
+
+async function handleCSVUpload(e) {
+  const files = Array.from(e.target.files);
+  const results = document.getElementById('import-results');
+  results.innerHTML = '';
+  for (const file of files) {
+    try {
+      const text = await file.text();
+      const txns = detectAndParse(text);
+      const existing = new Set(TRANSACTIONS.map(t => `${t.date}|${t.amount}|${t.description}`));
+      const newTxns = txns.filter(t => !existing.has(`${t.date}|${t.amount}|${t.description}`));
+      TRANSACTIONS = [...TRANSACTIONS, ...newTxns];
+      saveData();
+      results.innerHTML += `<div class="import-result" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);color:#10b981">
+        ✓ ${file.name} — ${txns[0]?.bank||'Unbekannt'} erkannt · ${newTxns.length} neue Transaktionen
+      </div>`;
+    } catch(err) {
+      results.innerHTML += `<div class="import-result" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);color:#ef4444">
+        ❌ ${file.name}: ${err.message}
+      </div>`;
+    }
+  }
+  e.target.value = '';
+}
+
+// ── AI ────────────────────────────────────────────────────────────────────
+async function runAI(type, btn) {
+  document.querySelectorAll('.ai-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const out = document.getElementById('ai-output');
+  out.innerHTML = '<div class="ai-loading"><div class="spinner"></div><span>Analysiere deine Finanzdaten...</span></div>';
+
+  const income   = TRANSACTIONS.filter(t=>t.amount>0).reduce((s,t)=>s+t.amount,0);
+  const expenses = Math.abs(TRANSACTIONS.filter(t=>t.amount<0).reduce((s,t)=>s+t.amount,0));
+  const totalCHF = ACCOUNTS.filter(a=>a.currency==='CHF').reduce((s,a)=>s+a.balance,0);
+  const totalEUR = ACCOUNTS.filter(a=>a.currency==='EUR').reduce((s,a)=>s+a.balance,0);
+  const cats = {};
+  TRANSACTIONS.filter(t=>t.amount<0).forEach(t=>{ cats[t.category]=(cats[t.category]||0)+Math.abs(t.amount); });
+  const catStr = Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k,v])=>`${k}: ${Math.round(v)}`).join(', ');
+
+  const prompts = {
+    advice: `Du bist ein Schweizer Finanzberater. Analysiere folgende Daten und gib auf Deutsch 3 konkrete Sparempfehlungen:
+Nettoeinkommen: ${Math.round(income)} (CHF + EUR mix)
+Ausgaben: ${Math.round(expenses)}
+Vermögen: CHF ${totalCHF.toLocaleString()} + EUR ${totalEUR.toLocaleString()}
+Top Ausgaben: ${catStr}
+Konten: BKB (CH), Sparkasse, Volksbank, MLP (DE)
+Gib kurze, actionable Empfehlungen. Max 200 Wörter.`,
+
+    invest: `Du bist ein Schweizer Investmentberater. Empfehle konkrete Investitionen auf Deutsch:
+Verfügbar/Monat: ca. CHF ${Math.round((income-expenses)/2)}
+Gesamtvermögen: CHF ${totalCHF} + EUR ${totalEUR}
+Nenne: 2-3 konkrete ETFs (mit Ticker), CH-Aktien-Tipps, Krypto-Anteil (falls sinnvoll), Schweizer Steueroptimierung. Max 220 Wörter.`,
+
+    plan: `Erstelle einen Schweizer Monats-Sparplan auf Deutsch:
+Einkommen: ${Math.round(income)}
+Ausgaben: ${Math.round(expenses)}
+Verfügbar: ${Math.round(income-expenses)}
+Zeige Aufteilung: Säule 3a (Max CHF 604/Mt), PK-Einkauf, Wertschriften, Notgroschen, freies Sparen. Mit CHF-Beträgen. Max 200 Wörter.`,
+
+    currency: `Als Schweizer Finanzberater: Analysiere die Währungssituation auf Deutsch:
+CHF-Vermögen: ${totalCHF}
+EUR-Vermögen: ${totalEUR} (ca. ${Math.round(totalEUR*0.96)} CHF)
+EUR-Anteil: ${Math.round(totalEUR*0.96/(totalCHF+totalEUR*0.96)*100)}%
+Einkommen in: CHF + EUR (DE-Konten)
+Empfehle: Optimale CHF/EUR-Verteilung, ob EUR-Konten sinnvoll, Absicherung. Max 200 Wörter.`,
+  };
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000, messages:[{role:'user',content:prompts[type]}] })
+    });
+    const data = await res.json();
+    const text = data.content?.map(b=>b.text||'').join('\n') || 'Keine Antwort erhalten.';
+    out.innerHTML = `<div class="ai-response">${text}</div>`;
+  } catch(e) {
+    out.innerHTML = `<div style="color:var(--red);font-size:13px">Fehler: ${e.message}</div>`;
+  }
+}
+
+// ── PWA Install ───────────────────────────────────────────────────────────
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); deferredPrompt = e;
+  document.getElementById('install-btn').classList.add('visible');
+});
+function installPWA() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(() => {
+    deferredPrompt = null;
+    document.getElementById('install-btn').classList.remove('visible');
+  });
+}
+
+// ── Service Worker ────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+loadData();
+renderOverview();
+renderAccounts();
+renderTransactions('all');
+
+window.addEventListener('resize', () => {
+  if (document.getElementById('page-overview').classList.contains('active')) drawPie();
+});
+</script>
+</body>
+</html>
